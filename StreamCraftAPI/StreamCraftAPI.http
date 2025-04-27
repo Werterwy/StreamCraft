@@ -1,0 +1,6 @@
+@StreamCraftAPI_HostAddress = http://localhost:5168
+
+GET {{StreamCraftAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
