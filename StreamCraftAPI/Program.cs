@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using StreamCraftAPI.Data.DbContext;
+using StreamCraftAPI.Queues;
 using StreamCraftAPI.Service;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,6 +9,12 @@ builder.Services.AddDbContext<StreamCraftDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddScoped<VideoStorageService>();
+
+builder.Services.AddSingleton<VideoProcessingQueue>();
+
+builder.Services.AddHostedService<VideoProcessingService>();
+
+
 
 
 // Add services to the container.

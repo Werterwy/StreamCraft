@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using StreamCraftAPI.Data.DbContext;
 using StreamCraftAPI.Data.Entities;
+using StreamCraftAPI.Data.Model;
+using StreamCraftAPI.Queues;
 using StreamCraftAPI.Service;
 
 namespace StreamCraftAPI.Controllers
@@ -13,11 +15,13 @@ namespace StreamCraftAPI.Controllers
     {
         private readonly VideoStorageService _storageService;
         private readonly StreamCraftDbContext _dbContext;
+        private readonly VideoProcessingQueue _queue;
 
-        public VideoUploadController(VideoStorageService storageService, StreamCraftDbContext dbContext)
+        public VideoUploadController(VideoStorageService storageService, StreamCraftDbContext dbContext, VideoProcessingQueue queue)
         {
             _storageService = storageService;
             _dbContext = dbContext;
+            _queue = queue;
         }
 
         [HttpPost("upload")]
@@ -33,11 +37,13 @@ namespace StreamCraftAPI.Controllers
                 FileName = file.FileName,
                 TempPath = filePath,
                 UploadTime = DateTime.UtcNow,
-                Status = "Uploaded"
+                Status = (int)VideoStatus.Uploaded   
             };
 
             _dbContext.Videos.Add(video);
             await _dbContext.SaveChangesAsync();
+
+            _queue.Enqueue(video.Id);
 
             return Ok(new { video.Id, video.FileName, Status = "Uploaded" });
         }

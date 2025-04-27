@@ -6,6 +6,6 @@
         public string FileName { get; set; }
         public string TempPath { get; set; }
         public DateTime UploadTime { get; set; }
-        public string Status { get; set; }
+        public int Status { get; set; }
     }
 }
