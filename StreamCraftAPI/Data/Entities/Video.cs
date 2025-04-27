@@ -1,11 +1,15 @@
-﻿namespace StreamCraftAPI.Data.Entities
+﻿using StreamCraftAPI.Data.Model;
+
+namespace StreamCraftAPI.Data.Entities
 {
     public class Video
     {
-        public int Id { get; set; }
-        public string FileName { get; set; }
-        public string TempPath { get; set; }
-        public DateTime UploadTime { get; set; }
-        public int Status { get; set; }
+        public Guid Id { get; set; }        
+        public Guid UserId { get; set; }   
+        public string FilePath { get; set; }  
+        public string ThumbnailPath { get; set; } 
+        public VideoStatus Status { get; set; }  
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow; 
     }
+
 }

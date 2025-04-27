@@ -2,10 +2,10 @@
 {
     public class VideoProcessingQueue
     {
-        private readonly Queue<int> _videoIds = new();
+        private readonly Queue<Guid> _videoIds = new();
         private readonly object _lock = new();
 
-        public void Enqueue(int videoId)
+        public void Enqueue(Guid videoId)
         {
             lock (_lock)
             {
@@ -13,7 +13,7 @@
             }
         }
 
-        public int? Dequeue()
+        public Guid? Dequeue()
         {
             lock (_lock)
             {

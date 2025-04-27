@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 using StreamCraftAPI.Data.DbContext;
 using StreamCraftAPI.Queues;
 using StreamCraftAPI.Service;
@@ -7,6 +8,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<StreamCraftDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Настройка Serilog
+builder.Host.UseSerilog((ctx, lc) => lc
+    .WriteTo.Console()
+    .WriteTo.Seq("http://localhost:5341") 
+    .Enrich.FromLogContext()
+);
 
 builder.Services.AddScoped<VideoStorageService>();
 

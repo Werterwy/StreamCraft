@@ -25,7 +25,7 @@ namespace StreamCraftAPI.Controllers
         }
 
         [HttpPost("upload")]
-        public async Task<IActionResult> UploadVideo(IFormFile file)
+        public async Task<IActionResult> UploadVideo(IFormFile file, Guid userId)
         {
             if (file == null || file.Length == 0)
                 return BadRequest("Invalid file.");
@@ -34,18 +34,20 @@ namespace StreamCraftAPI.Controllers
 
             var video = new Video
             {
-                FileName = file.FileName,
-                TempPath = filePath,
-                UploadTime = DateTime.UtcNow,
-                Status = (int)VideoStatus.Uploaded   
+                Id = Guid.NewGuid(),                
+                UserId = userId,        
+                FilePath = filePath,                 
+                ThumbnailPath = null,               
+                Status = VideoStatus.Uploaded,      
+                CreatedAt = DateTime.UtcNow
             };
 
             _dbContext.Videos.Add(video);
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync();    
 
             _queue.Enqueue(video.Id);
 
-            return Ok(new { video.Id, video.FileName, Status = "Uploaded" });
+            return Ok(new { video.Id, file.FileName, Status = "Uploaded" });
         }
     }
 }
