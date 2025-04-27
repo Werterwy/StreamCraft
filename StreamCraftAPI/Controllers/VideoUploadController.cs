@@ -16,12 +16,14 @@ namespace StreamCraftAPI.Controllers
         private readonly VideoStorageService _storageService;
         private readonly StreamCraftDbContext _dbContext;
         private readonly VideoProcessingQueue _queue;
+        private readonly ILogger<VideoUploadController> _logger;
 
-        public VideoUploadController(VideoStorageService storageService, StreamCraftDbContext dbContext, VideoProcessingQueue queue)
+        public VideoUploadController(VideoStorageService storageService, StreamCraftDbContext dbContext, VideoProcessingQueue queue, ILogger<VideoUploadController> logger)
         {
             _storageService = storageService;
             _dbContext = dbContext;
             _queue = queue;
+            _logger = logger;
         }
 
         [HttpPost("upload")]
@@ -42,10 +44,16 @@ namespace StreamCraftAPI.Controllers
                 CreatedAt = DateTime.UtcNow
             };
 
+            _logger.LogInformation("Uploading file {FileName} by user {UserId}", file.FileName, userId);
+
             _dbContext.Videos.Add(video);
-            await _dbContext.SaveChangesAsync();    
+            await _dbContext.SaveChangesAsync();
+
+            _logger.LogInformation("Video {VideoId} saved to database.", video.Id);
 
             _queue.Enqueue(video.Id);
+
+            _logger.LogInformation("Video {VideoId} enqueued for processing.", video.Id);
 
             return Ok(new { video.Id, file.FileName, Status = "Uploaded" });
         }
