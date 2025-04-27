@@ -22,10 +22,6 @@ builder.Services.AddSingleton<VideoProcessingQueue>();
 
 builder.Services.AddHostedService<VideoProcessingService>();
 
-builder.Services.AddHostedService<VideoProcessingWorker>();
-
-
-
 // Add services to the container.
 
 builder.Services.AddControllers();
