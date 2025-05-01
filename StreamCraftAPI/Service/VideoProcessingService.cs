@@ -11,6 +11,7 @@ namespace StreamCraftAPI.Service
         private readonly VideoStorageService _storageService;
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<VideoProcessingService> _logger;
+        private const int MaxAttempts = 3;
 
         public VideoProcessingService(VideoProcessingQueue queue, IServiceProvider serviceProvider, ILogger<VideoProcessingService> logger, VideoStorageService storageService)
         {
@@ -22,31 +23,92 @@ namespace StreamCraftAPI.Service
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            _logger.LogInformation("Video processing service started.");
+
             while (!stoppingToken.IsCancellationRequested)
             {
-                _logger.LogInformation("Starting video processing service.");
+                try
+                {
+                    var videoId = await _queue.DequeueAsync(stoppingToken);
+                    _logger.LogInformation("Dequeued video with ID: {VideoId}", videoId);
 
+                    await ProcessVideoAsync(videoId, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Unexpected error in video processing loop.");
+                }
+            }
+
+            _logger.LogInformation("Video processing service stopped.");
+        }
+
+        private async Task ProcessVideoAsync(Guid videoId, CancellationToken cancellationToken)
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<StreamCraftDbContext>();
+            var video = await dbContext.Videos.FindAsync(new object[] { videoId }, cancellationToken);
+
+            if (video == null)
+            {
+                _logger.LogWarning("Video not found for ID: {VideoId}", videoId);
+                return;
+            }
+
+            video.Status = VideoStatus.Processing;
+            video.Attempts++;
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                var inputPath = _storageService.GetTempPath(videoId);
+                var outputPath = _storageService.GetVideoPath(videoId);
+                var thumbnailPath = _storageService.GetThumbnailPath(videoId);
+
+                await _storageService.ConvertVideoAsync(inputPath, outputPath);
+                await _storageService.CreateThumbnailAsync(outputPath, thumbnailPath);
+
+                video.FilePath = outputPath;
+                video.ThumbnailPath = thumbnailPath;
+                video.Status = VideoStatus.Processed;
+                video.ErrorMessage = null;
+
+                _logger.LogInformation("Video {VideoId} processed successfully.", videoId);
+            }
+            catch (Exception ex)
+            {
+                video.ErrorMessage = ex.Message;
+
+                if (video.Attempts < MaxAttempts)
+                {
+                    _logger.LogWarning(ex, "Error processing video {VideoId}, will retry (Attempt {Attempt})", videoId, video.Attempts);
+                    await dbContext.SaveChangesAsync(cancellationToken);
+
+                    await _queue.EnqueueAsync(videoId);
+                    return;
+                }
+
+                video.Status = VideoStatus.Failed;
+                _logger.LogError(ex, "Video {VideoId} failed after {Attempts} attempts.", videoId, video.Attempts);
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        /*protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            _logger.LogInformation("Starting video processing service.");
+            while (!stoppingToken.IsCancellationRequested)
+            {
                 var videoId = _queue.Dequeue();
 
                 if (videoId != null)
                 {
-                    /*using var scope = _serviceProvider.CreateScope();
-                    var dbContext = scope.ServiceProvider.GetRequiredService<StreamCraftDbContext>();
-                    var video = await dbContext.Videos.FindAsync(videoId);
-
-                    if (video != null)
-                    {
-                        // TODO: Тут будет обработка видео (конвертация, миниатюры, водяной знак)
-                        video.Status = VideoStatus.Processed;
-                        await dbContext.SaveChangesAsync();
-
-                        _logger.LogInformation("Video {VideoId} processed successfully.", videoId);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Video {VideoId} not found.", videoId);
-                    }*/
-
+                    _logger.LogInformation("Processing video with ID: {VideoId}", videoId);
                     try
                     {
                         var inputPath = GetInputVideoPath(videoId.Value);
@@ -56,7 +118,7 @@ namespace StreamCraftAPI.Service
                         await _storageService.ConvertVideoAsync(inputPath, outputPath);
                         await _storageService.CreateThumbnailAsync(outputPath, thumbnailPath);
 
-                        UpdateVideoStatusToProcessed(videoId.Value);
+                        await UpdateVideoStatusAsync(videoId.Value, outputPath, thumbnailPath);
 
                         _logger.LogInformation($"Video {videoId} processed successfully.");
                     }
@@ -70,6 +132,7 @@ namespace StreamCraftAPI.Service
                     await Task.Delay(1000, stoppingToken); // подождать, если нет задач
                 }
             }
+            _logger.LogInformation("Video Processing Worker stopping.");
         }
 
         private string GetInputVideoPath(Guid videoId)
@@ -87,19 +150,22 @@ namespace StreamCraftAPI.Service
             return Path.Combine("wwwroot", "thumbnails", $"{videoId}_thumb.jpg");
         }
 
-        private void UpdateVideoStatusToProcessed(Guid videoId)
+        private async Task UpdateVideoStatusAsync(Guid videoId, string videoPath, string thumbnailPath)
         {
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<StreamCraftDbContext>();
 
             var video = dbContext.Videos.Find(videoId);
-            if (video != null)
+            if (video == null)
             {
-                video.Status = VideoStatus.Processed;
-                dbContext.SaveChanges();
+                _logger.LogWarning("Video not found in DB for ID: {VideoId}", videoId);
+                return;
             }
-
-        }
+            video.FilePath = videoPath;
+            video.ThumbnailPath = thumbnailPath;
+            video.Status = VideoStatus.Processed;
+            await dbContext.SaveChangesAsync();
+        }*/
 
 
 

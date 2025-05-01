@@ -41,7 +41,9 @@ namespace StreamCraftAPI.Controllers
                 FilePath = filePath,                 
                 ThumbnailPath = null,               
                 Status = VideoStatus.Uploaded,      
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                Attempts = 0,
+                ErrorMessage = null
             };
 
             _logger.LogInformation("Uploading file {FileName} by user {UserId}", file.FileName, userId);
@@ -51,7 +53,7 @@ namespace StreamCraftAPI.Controllers
 
             _logger.LogInformation("Video {VideoId} saved to database.", video.Id);
 
-            _queue.Enqueue(video.Id);
+            await _queue.EnqueueAsync(video.Id);
 
             _logger.LogInformation("Video {VideoId} enqueued for processing.", video.Id);
 
