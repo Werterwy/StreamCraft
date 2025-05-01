@@ -8,10 +8,9 @@ namespace StreamCraftAPI.Data.Entities
         public Guid UserId { get; set; }   
         public string FilePath { get; set; }  
         public string ThumbnailPath { get; set; } 
-        public VideoStatus Status { get; set; }  
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow; 
-        public int Attempts { get; set; } = 0;
-        public string ErrorMessage { get; set; } 
+        public string FilePath720 { get; set; }
+        public string FilePath1080 { get; set; }
         
     }
 

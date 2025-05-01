@@ -4,7 +4,8 @@
     {
         Convert = 0,
         GenerateThumbnail = 1,
-        AddWatermark = 2
+        AddWatermark = 2,
+        Encode = 3
     }
 
 }

@@ -34,30 +34,45 @@ namespace StreamCraftAPI.Controllers
 
             var filePath = await _storageService.SaveTempVideoAsync(file);
 
+            var videoId = Guid.NewGuid();
+
             var video = new Video
             {
-                Id = Guid.NewGuid(),                
-                UserId = userId,        
-                FilePath = filePath,                 
-                ThumbnailPath = null,               
-                Status = VideoStatus.Uploaded,      
+                Id = videoId,
+                UserId = userId,
+                FilePath = filePath,
+                ThumbnailPath = null,
                 CreatedAt = DateTime.UtcNow,
+                FilePath720 = null,
+                FilePath1080 = null
+            };
+
+            var processingTask = new VideoProcessingTask
+            {
+                Id = Guid.NewGuid(),
+                VideoId = videoId,
+                TaskType = VideoTaskType.Encode, 
+                Status = StreamCraftAPI.Data.Model.TaskStatus.Pending,
                 Attempts = 0,
-                ErrorMessage = null
+                ErrorMessage = null,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
 
             _logger.LogInformation("Uploading file {FileName} by user {UserId}", file.FileName, userId);
 
             _dbContext.Videos.Add(video);
+            _dbContext.VideoProcessingTasks.Add(processingTask);
             await _dbContext.SaveChangesAsync();
 
-            _logger.LogInformation("Video {VideoId} saved to database.", video.Id);
+            _logger.LogInformation("Video {VideoId} and processing task created.", videoId);
 
-            await _queue.EnqueueAsync(video.Id);
+            await _queue.EnqueueAsync(processingTask.Id); // enqueue task ID, not video ID
 
-            _logger.LogInformation("Video {VideoId} enqueued for processing.", video.Id);
+            _logger.LogInformation("Task {TaskId} enqueued for processing.", processingTask.Id);
 
             return Ok(new { video.Id, file.FileName, Status = "Uploaded" });
         }
+
     }
 }

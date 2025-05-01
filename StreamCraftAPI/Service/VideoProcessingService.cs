@@ -1,4 +1,5 @@
-﻿using StreamCraftAPI.Data.DbContext;
+﻿using Microsoft.EntityFrameworkCore;
+using StreamCraftAPI.Data.DbContext;
 using StreamCraftAPI.Data.Model;
 using StreamCraftAPI.Queues;
 using System.Diagnostics;
@@ -47,57 +48,67 @@ namespace StreamCraftAPI.Service
             _logger.LogInformation("Video processing service stopped.");
         }
 
-        private async Task ProcessVideoAsync(Guid videoId, CancellationToken cancellationToken)
+        private async Task ProcessVideoAsync(Guid taskId, CancellationToken cancellationToken)
         {
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<StreamCraftDbContext>();
-            var video = await dbContext.Videos.FindAsync(new object[] { videoId }, cancellationToken);
 
-            if (video == null)
+            var task = await dbContext.VideoProcessingTasks
+                .Include(t => t.Video)
+                .FirstOrDefaultAsync(t => t.Id == taskId, cancellationToken);
+
+            if (task == null)
             {
-                _logger.LogWarning("Video not found for ID: {VideoId}", videoId);
+                _logger.LogWarning("Video processing task not found: {TaskId}", taskId);
                 return;
             }
 
-            video.Status = VideoStatus.Processing;
-            video.Attempts++;
+            var video = task.Video;
+
+            task.Status = StreamCraftAPI.Data.Model.TaskStatus.Processing;
+            task.Attempts++;
+            task.UpdatedAt = DateTime.UtcNow;
             await dbContext.SaveChangesAsync(cancellationToken);
 
             try
             {
-                var inputPath = _storageService.GetTempPath(videoId);
-                var outputPath = _storageService.GetVideoPath(videoId);
-                var thumbnailPath = _storageService.GetThumbnailPath(videoId);
+                var inputPath = _storageService.GetTempPath(video.Id);
+                var outputPath = _storageService.GetVideoPath(video.Id);
+                var thumbnailPath = _storageService.GetThumbnailPath(video.Id);
 
-                await _storageService.ConvertVideoAsync(inputPath, outputPath);
+                var (path720, path1080) = await _storageService.ConvertVideoAsync(inputPath, outputPath);
                 await _storageService.CreateThumbnailAsync(outputPath, thumbnailPath);
 
                 video.FilePath = outputPath;
+                video.FilePath720 = path720;
+                video.FilePath1080 = path1080;
                 video.ThumbnailPath = thumbnailPath;
-                video.Status = VideoStatus.Processed;
-                video.ErrorMessage = null;
 
-                _logger.LogInformation("Video {VideoId} processed successfully.", videoId);
+                task.Status = StreamCraftAPI.Data.Model.TaskStatus.Completed;
+                task.ErrorMessage = null;
+                _logger.LogInformation("Video {VideoId} processed successfully.", video.Id);
             }
             catch (Exception ex)
             {
-                video.ErrorMessage = ex.Message;
+                task.ErrorMessage = ex.Message;
+                task.UpdatedAt = DateTime.UtcNow;
 
-                if (video.Attempts < MaxAttempts)
+                if (task.Attempts < MaxAttempts)
                 {
-                    _logger.LogWarning(ex, "Error processing video {VideoId}, will retry (Attempt {Attempt})", videoId, video.Attempts);
+                    _logger.LogWarning(ex, "Error processing video {VideoId}, will retry (Attempt {Attempt})", video.Id, task.Attempts);
                     await dbContext.SaveChangesAsync(cancellationToken);
 
-                    await _queue.EnqueueAsync(videoId);
+                    await _queue.EnqueueAsync(task.Id);
                     return;
                 }
 
-                video.Status = VideoStatus.Failed;
-                _logger.LogError(ex, "Video {VideoId} failed after {Attempts} attempts.", videoId, video.Attempts);
+                task.Status = StreamCraftAPI.Data.Model.TaskStatus.Failed;
+                _logger.LogError(ex, "Video {VideoId} failed after {Attempts} attempts.", video.Id, task.Attempts);
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);
         }
+
 
         /*protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {

@@ -39,25 +39,38 @@ namespace StreamCraftAPI.Service
             return fullPath;
         }
 
-        public async Task ConvertVideoAsync(string inputPath, string outputPath)
+        public async Task<(string path720, string path1080)> ConvertVideoAsync(string inputPath, string outputDirectory)
         {
-            _logger.LogInformation("Converting video: {Input} -> {Output}", inputPath, outputPath);
-
             if (!File.Exists(inputPath))
-            {
-                _logger.LogError("Input file does not exist: {Path}", inputPath);
                 throw new FileNotFoundException("Input video not found", inputPath);
-            }
 
-            var arguments = $"-i \"{inputPath}\" -c:v libx264 -preset fast -crf 23 \"{outputPath}\"";
+            _logger.LogInformation("Starting video conversion with watermark: {Input}", inputPath);
 
-            var success = await RunFfmpegProcess(arguments);
-            if (!success)
-            {
-                _logger.LogError("Failed to convert video: {Input}", inputPath);
-                throw new Exception("Video conversion failed");
-            }
+            var baseName = Path.GetFileNameWithoutExtension(inputPath);
+            var path720 = Path.Combine(outputDirectory, $"{baseName}_720p.mp4");
+            var path1080 = Path.Combine(outputDirectory, $"{baseName}_1080p.mp4");
+
+            string watermarkText = "MyService"; 
+
+            var args720 = $"-i \"{inputPath}\" -vf \"scale=-2:720,drawtext=text='{watermarkText}':x=10:y=10:fontsize=24:fontcolor=white:shadowcolor=black:shadowx=2:shadowy=2\" " +
+                          "-c:v libx264 -preset fast -crf 23 -c:a copy " +
+                          $"\"{path720}\"";
+
+            var args1080 = $"-i \"{inputPath}\" -vf \"scale=-2:1080,drawtext=text='{watermarkText}':x=10:y=10:fontsize=32:fontcolor=white:shadowcolor=black:shadowx=2:shadowy=2\" " +
+                           "-c:v libx264 -preset fast -crf 23 -c:a copy " +
+                           $"\"{path1080}\"";
+
+            var success720 = await RunFfmpegProcess(args720);
+            var success1080 = await RunFfmpegProcess(args1080);
+
+            if (!success720 || !success1080)
+                throw new Exception("One or both video conversions failed");
+
+            _logger.LogInformation("Video converted successfully to 720p and 1080p with watermark");
+
+            return (path720, path1080);
         }
+
 
         public async Task CreateThumbnailAsync(string inputPath, string thumbnailPath)
         {

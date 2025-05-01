@@ -8,6 +8,7 @@ namespace StreamCraftAPI.Data.DbContext
         public StreamCraftDbContext(DbContextOptions<StreamCraftDbContext> options) : base(options) { }
 
         public DbSet<Video> Videos { get; set; }
+        public DbSet<VideoProcessingTask> VideoProcessingTasks { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
