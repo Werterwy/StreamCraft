@@ -1,3 +1,5 @@
+using CorrelationId;
+using CorrelationId.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using StreamCraftAPI;
@@ -11,12 +13,24 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<StreamCraftDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Настройка Serilog
+/*// Настройка Serilog
 builder.Host.UseSerilog((ctx, lc) => lc
     .WriteTo.Console()
     .WriteTo.Seq("http://localhost:5341") 
     .Enrich.FromLogContext()
-);
+);*/
+
+// Настройка Serilog
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day)
+    .WriteTo.Async(a => a.Seq("http://localhost:5341")) 
+    .Enrich.FromLogContext()
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
+builder.Services.AddControllersWithViews();
 
 builder.Services.AddScoped<VideoStorageService>();
 
@@ -25,6 +39,10 @@ builder.Services.AddSingleton<VideoProcessingQueue>();
 builder.Services.AddHostedService<VideoProcessingService>();
 
 builder.Services.AddSingleton<WebSocketConnectionManager>();
+
+builder.Services.AddDefaultCorrelationId();
+
+builder.Services.AddHealthChecks();
 
 
 builder.Services.AddSingleton<IPermanentStorageService>(provider =>
@@ -55,6 +73,23 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.MapHealthChecks("/health");
+
+app.UseCorrelationId();
+
+app.Use(async (context, next) =>
+{
+    var requestId = context.TraceIdentifier;
+    Log.Information("HTTP {Method} {Path} - RequestId: {RequestId}",
+        context.Request.Method, context.Request.Path, requestId);
+
+    await next();
+
+    Log.Information("Response {StatusCode} - RequestId: {RequestId}",
+        context.Response.StatusCode, requestId);
+});
+
 
 app.UseWebSockets();
 
