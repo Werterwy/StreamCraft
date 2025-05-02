@@ -52,6 +52,7 @@ namespace StreamCraftAPI.Service
         {
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<StreamCraftDbContext>();
+            var orchestrator = scope.ServiceProvider.GetRequiredService<StorageOrchestratorService>();
 
             var task = await dbContext.VideoProcessingTasks
                 .Include(t => t.Video)
@@ -78,6 +79,9 @@ namespace StreamCraftAPI.Service
 
                 var (path720, path1080) = await _storageService.ConvertVideoAsync(inputPath, outputPath);
                 await _storageService.CreateThumbnailAsync(outputPath, thumbnailPath);
+
+                // Загрузка файлов и обновление ссылок
+                await orchestrator.StoreAndUpdateVideoAsync(video.Id, path720, path1080, thumbnailPath);
 
                 video.FilePath = outputPath;
                 video.FilePath720 = path720;

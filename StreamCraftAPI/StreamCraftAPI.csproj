@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" Version="4.0.0.1" />
     <PackageReference Include="FFMpegCore" Version="5.2.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.15" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.15">
@@ -28,6 +29,8 @@
     <Folder Include="wwwroot\tempVideos\" />
     <Folder Include="wwwroot\thumbnails\" />
     <Folder Include="wwwroot\videos\" />
+    <Folder Include="wwwroot\fallbackVideos\" />
+    <Folder Include="wwwroot\fallbackThumbnails\" />
   </ItemGroup>
 
 </Project>

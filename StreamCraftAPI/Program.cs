@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using StreamCraftAPI.Data.DbContext;
+using StreamCraftAPI.Interface;
 using StreamCraftAPI.Queues;
 using StreamCraftAPI.Service;
 
@@ -21,6 +22,17 @@ builder.Services.AddScoped<VideoStorageService>();
 builder.Services.AddSingleton<VideoProcessingQueue>();
 
 builder.Services.AddHostedService<VideoProcessingService>();
+
+builder.Services.AddSingleton<IPermanentStorageService>(provider =>
+{
+    var s3 = provider.GetRequiredService<S3StorageService>();
+    var fallback = provider.GetRequiredService<LocalFallbackStorageService>();
+    return new ResilientStorageService(s3, fallback);
+});
+builder.Services.AddSingleton<S3StorageService>();
+builder.Services.AddSingleton<LocalFallbackStorageService>();
+builder.Services.AddScoped<StorageOrchestratorService>();
+
 
 // Add services to the container.
 
