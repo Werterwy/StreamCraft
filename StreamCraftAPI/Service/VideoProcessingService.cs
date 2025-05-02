@@ -13,13 +13,16 @@ namespace StreamCraftAPI.Service
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<VideoProcessingService> _logger;
         private const int MaxAttempts = 3;
+        private readonly WebSocketConnectionManager _connectionManager;
 
-        public VideoProcessingService(VideoProcessingQueue queue, IServiceProvider serviceProvider, ILogger<VideoProcessingService> logger, VideoStorageService storageService)
+        public VideoProcessingService(VideoProcessingQueue queue, IServiceProvider serviceProvider,
+            ILogger<VideoProcessingService> logger, VideoStorageService storageService, WebSocketConnectionManager connectionManager)
         {
             _queue = queue;
             _serviceProvider = serviceProvider;
             _logger = logger;
             _storageService = storageService;
+            _connectionManager = connectionManager;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -111,6 +114,34 @@ namespace StreamCraftAPI.Service
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task ProcessVideoAndNotify(string userId)
+        {
+            _logger.LogInformation("Обработка видео началась...");
+            await SendVideoProcessingStatus(userId, "Обработка начата");
+
+            await Task.Delay(2000);
+
+            _logger.LogInformation("Обработка видео завершена...");
+            await SendVideoProcessingStatus(userId, "Загрузка завершена");
+
+            await Task.Delay(3000);
+
+            _logger.LogInformation("Видео готово");
+            await SendVideoProcessingStatus(userId, "Видео готово");
+        }
+
+        private async Task SendVideoProcessingStatus(string userId, string status)
+        {
+            try
+            {
+                await _connectionManager.SendToUser(userId, status);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка отправки уведомления пользователю {UserId}", userId);
+            }
         }
 
 

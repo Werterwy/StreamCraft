@@ -17,13 +17,16 @@ namespace StreamCraftAPI.Controllers
         private readonly StreamCraftDbContext _dbContext;
         private readonly VideoProcessingQueue _queue;
         private readonly ILogger<VideoUploadController> _logger;
+        private readonly WebSocketConnectionManager _webSocketConnectionManager;
 
-        public VideoUploadController(VideoStorageService storageService, StreamCraftDbContext dbContext, VideoProcessingQueue queue, ILogger<VideoUploadController> logger)
+        public VideoUploadController(VideoStorageService storageService, StreamCraftDbContext dbContext,
+            VideoProcessingQueue queue, ILogger<VideoUploadController> logger, WebSocketConnectionManager webSocketConnectionManager)
         {
             _storageService = storageService;
             _dbContext = dbContext;
             _queue = queue;
             _logger = logger;
+            _webSocketConnectionManager = webSocketConnectionManager;
         }
 
         [HttpPost("upload")]
@@ -51,7 +54,7 @@ namespace StreamCraftAPI.Controllers
             {
                 Id = Guid.NewGuid(),
                 VideoId = videoId,
-                TaskType = VideoTaskType.Encode, 
+                TaskType = VideoTaskType.Encode,
                 Status = StreamCraftAPI.Data.Model.TaskStatus.Pending,
                 Attempts = 0,
                 ErrorMessage = null,
@@ -64,6 +67,8 @@ namespace StreamCraftAPI.Controllers
             _dbContext.Videos.Add(video);
             _dbContext.VideoProcessingTasks.Add(processingTask);
             await _dbContext.SaveChangesAsync();
+
+            await _webSocketConnectionManager.SendToUser(userId.ToString(), "Видео готово");
 
             _logger.LogInformation("Video {VideoId} and processing task created.", videoId);
 

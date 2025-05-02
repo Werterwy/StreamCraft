@@ -6,3 +6,57 @@
     <h1 class="display-4">Welcome</h1>
     <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
 </div>
+
+@section Scripts {
+    <script>
+        let userId = "user123"; // можешь передавать динамически
+        let socket = null;
+        let pingInterval = null;
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+            const wsUrl = `${protocol}://${window.location.host}/ws/notifications?userId=${userId}`;
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = function () {
+                console.log("WebSocket открыт");
+                appendMessage("🔵 Соединение установлено");
+
+                // Периодический пинг
+                pingInterval = setInterval(() => {
+                    if (socket.readyState === WebSocket.OPEN) {
+                        socket.send("ping");
+                    }
+                }, 10000); // каждые 10 секунд
+            };
+
+            socket.onmessage = function (event) {
+                appendMessage("📢 " + event.data);
+            };
+
+            socket.onerror = function (error) {
+                appendMessage("❌ Ошибка WebSocket");
+                console.error(error);
+            };
+
+            socket.onclose = function () {
+                appendMessage("🔴 Соединение закрыто");
+                if (pingInterval) clearInterval(pingInterval);
+                setTimeout(connectWebSocket, 5000); // попытка переподключения
+            };
+        }
+
+        function appendMessage(message) {
+            const list = document.getElementById("notifications");
+            const li = document.createElement("li");
+            li.textContent = message;
+            list.appendChild(li);
+        }
+
+        window.onload = connectWebSocket;
+    </script>
+}
+
+<h2>WebSocket Уведомления</h2>
+<ul id="notifications"></ul>
+

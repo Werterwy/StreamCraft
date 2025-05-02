@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Serilog;
+using StreamCraftAPI;
 using StreamCraftAPI.Data.DbContext;
 using StreamCraftAPI.Interface;
 using StreamCraftAPI.Queues;
@@ -22,6 +23,9 @@ builder.Services.AddScoped<VideoStorageService>();
 builder.Services.AddSingleton<VideoProcessingQueue>();
 
 builder.Services.AddHostedService<VideoProcessingService>();
+
+builder.Services.AddSingleton<WebSocketConnectionManager>();
+
 
 builder.Services.AddSingleton<IPermanentStorageService>(provider =>
 {
@@ -51,6 +55,27 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseWebSockets();
+
+app.Map("/ws/notifications", async context =>
+{
+    if (context.WebSockets.IsWebSocketRequest)
+    {
+        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+        var userId = context.Request.Query["userId"].ToString();
+
+        if (!string.IsNullOrEmpty(userId))
+        {
+            var connectionManager = context.RequestServices.GetRequiredService<WebSocketConnectionManager>();
+            await connectionManager.Register(userId, webSocket);
+        }
+    }
+    else
+    {
+        context.Response.StatusCode = 400;
+    }
+});
 
 app.UseAuthorization();
 
