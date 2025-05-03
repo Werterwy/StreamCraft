@@ -11,13 +11,11 @@ namespace StreamCraftAPI.Controllers
     {
         private readonly WebSocketConnectionManager _connectionManager;
         private readonly ILogger<NotificationController> _logger;
-        private readonly VideoProcessingService _videoService;
 
-        public NotificationController(WebSocketConnectionManager connectionManager, ILogger<NotificationController> logger, VideoProcessingService videoService)
+        public NotificationController(WebSocketConnectionManager connectionManager, ILogger<NotificationController> logger)
         {
             _connectionManager = connectionManager;
             _logger = logger;
-            _videoService = videoService;
         }
 
         [HttpGet("ws")]
@@ -32,7 +30,7 @@ namespace StreamCraftAPI.Controllers
 
             var socket = await HttpContext.WebSockets.AcceptWebSocketAsync();
 
-            var userId = HttpContext.Request.Query["userId"];
+            var userId = HttpContext.Request.Query["userId"].ToString();
             if (string.IsNullOrEmpty(userId))
             {
                 _logger.LogWarning("Не указан userId для подключения.");
@@ -42,13 +40,17 @@ namespace StreamCraftAPI.Controllers
 
             await _connectionManager.Register(userId, socket);
             _logger.LogInformation("Пользователь подключился: {UserId}", userId);
-        }
 
-        [HttpPost("process-video")]
-        public async Task<IActionResult> ProcessVideo([FromQuery] string userId)
-        {
-            await _videoService.ProcessVideoAndNotify(userId);
-            return Ok("Процесс запущен");
+            var buffer = new byte[1024 * 4];
+            while (socket.State == WebSocketState.Open)
+            {
+                var result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    await _connectionManager.Unregister(userId);
+                    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closed by client", cancellationToken);
+                }
+            }
         }
     }
 

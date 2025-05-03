@@ -11,7 +11,7 @@ namespace StreamCraftAPI.Data.Entities
         public int Attempts { get; set; } = 0;
         public string? ErrorMessage { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime? UpdatedAt { get; set; }
         public Video Video { get; set; }
     }
 }

@@ -29,6 +29,12 @@
                 </div>
             </div>
         </nav>
+
+        @using (Html.BeginForm("Logout", "Account", FormMethod.Post))
+        {
+            <button type="submit" class="btn btn-secondary">Выйти</button>
+        }
+
     </header>
     <div class="container">
         <main role="main" class="pb-3">

@@ -33,10 +33,10 @@ namespace StreamCraftAPI.Service
             {
                 try
                 {
-                    var videoId = await _queue.DequeueAsync(stoppingToken);
-                    _logger.LogInformation("Dequeued video with ID: {VideoId}", videoId);
+                    var TaskId = await _queue.DequeueAsync(stoppingToken);
+                    _logger.LogInformation("Dequeued video with ID: {VideoId}", TaskId);
 
-                    await ProcessVideoAsync(videoId, stoppingToken);
+                    await ProcessVideoAsync(TaskId, stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {
@@ -66,8 +66,7 @@ namespace StreamCraftAPI.Service
                 _logger.LogWarning("Video processing task not found: {TaskId}", taskId);
                 return;
             }
-
-            var video = task.Video;
+            var video = await dbContext.Videos.FirstOrDefaultAsync(t => t.Id == task.VideoId, cancellationToken);
 
             task.Status = StreamCraftAPI.Data.Model.TaskStatus.Processing;
             task.Attempts++;
@@ -76,15 +75,14 @@ namespace StreamCraftAPI.Service
 
             try
             {
-                var inputPath = _storageService.GetTempPath(video.Id);
-                var outputPath = _storageService.GetVideoPath(video.Id);
-                var thumbnailPath = _storageService.GetThumbnailPath(video.Id);
+                var inputPath = _storageService.GetTempPath(task.VideoId);
+                var outputPath = _storageService.GetVideoPath(task.VideoId);
+                var thumbnailPath = _storageService.GetThumbnailPath(task.VideoId);
 
                 var (path720, path1080) = await _storageService.ConvertVideoAsync(inputPath, outputPath);
                 await _storageService.CreateThumbnailAsync(outputPath, thumbnailPath);
 
-                // Загрузка файлов и обновление ссылок
-                await orchestrator.StoreAndUpdateVideoAsync(video.Id, path720, path1080, thumbnailPath);
+                await orchestrator.StoreAndUpdateVideoAsync(task.VideoId, path720, path1080, thumbnailPath);
 
                 video.FilePath = outputPath;
                 video.FilePath720 = path720;
@@ -143,6 +141,7 @@ namespace StreamCraftAPI.Service
                 _logger.LogError(ex, "Ошибка отправки уведомления пользователю {UserId}", userId);
             }
         }
+
 
 
         /*protected override async Task ExecuteAsync(CancellationToken stoppingToken)

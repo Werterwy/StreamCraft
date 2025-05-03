@@ -17,20 +17,41 @@ namespace StreamCraftAPI
         public async Task Register(string userId, WebSocket socket)
         {
             _sockets[userId] = socket;
+            _logger.LogInformation("WebSocket зарегистрирован: {UserId}", userId);
             await Listen(userId, socket);
+        }
+
+        public async Task Unregister(string userId)
+        {
+            if (_sockets.TryRemove(userId, out var socket))
+            {
+                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Connection closed", CancellationToken.None);
+            }
         }
 
         public async Task SendToUser(string userId, string message)
         {
-            if (_sockets.TryGetValue(userId, out var socket) && socket.State == WebSocketState.Open)
+            if (_sockets.TryGetValue(userId, out var socket))
             {
-                var buffer = Encoding.UTF8.GetBytes(message);
-                await socket.SendAsync(
-                    new ArraySegment<byte>(buffer),
-                    WebSocketMessageType.Text,
-                    true,
-                    CancellationToken.None
-                );
+                if (socket.State == WebSocketState.Open)
+                {
+                    var buffer = Encoding.UTF8.GetBytes(message);
+                    await socket.SendAsync(
+                        new ArraySegment<byte>(buffer),
+                        WebSocketMessageType.Text,
+                        true,
+                        CancellationToken.None
+                    );
+                    _logger?.LogInformation("Сообщение отправлено пользователю {UserId}: {Message}", userId, message);
+                }
+                else
+                {
+                    _logger?.LogWarning("WebSocket для пользователя {UserId} не открыт. State: {State}", userId, socket.State);
+                }
+            }
+            else
+            {
+                _logger?.LogWarning("WebSocket не найден для пользователя {UserId}", userId);
             }
         }
 

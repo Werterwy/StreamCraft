@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using StreamCraftAPI.Data.DbContext;
 using StreamCraftAPI.Data.Entities;
@@ -18,17 +19,20 @@ namespace StreamCraftAPI.Controllers
         private readonly VideoProcessingQueue _queue;
         private readonly ILogger<VideoUploadController> _logger;
         private readonly WebSocketConnectionManager _webSocketConnectionManager;
+        private readonly VideoProcessingService _videoService;
 
         public VideoUploadController(VideoStorageService storageService, StreamCraftDbContext dbContext,
-            VideoProcessingQueue queue, ILogger<VideoUploadController> logger, WebSocketConnectionManager webSocketConnectionManager)
+            VideoProcessingQueue queue, ILogger<VideoUploadController> logger, WebSocketConnectionManager webSocketConnectionManager,
+            VideoProcessingService videoService)
         {
             _storageService = storageService;
             _dbContext = dbContext;
             _queue = queue;
             _logger = logger;
             _webSocketConnectionManager = webSocketConnectionManager;
+            _videoService = videoService;
         }
-
+        [RequestSizeLimit(100_000_000_000)]
         [HttpPost("upload")]
         public async Task<IActionResult> UploadVideo(IFormFile file, Guid userId)
         {
@@ -59,7 +63,7 @@ namespace StreamCraftAPI.Controllers
                 Attempts = 0,
                 ErrorMessage = null,
                 CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                UpdatedAt = null
             };
 
             _logger.LogInformation("Uploading file {FileName} by user {UserId}", file.FileName, userId);
@@ -72,12 +76,37 @@ namespace StreamCraftAPI.Controllers
 
             _logger.LogInformation("Video {VideoId} and processing task created.", videoId);
 
-            await _queue.EnqueueAsync(processingTask.Id); // enqueue task ID, not video ID
+            await _queue.EnqueueAsync(processingTask.Id); 
 
             _logger.LogInformation("Task {TaskId} enqueued for processing.", processingTask.Id);
 
             return Ok(new { video.Id, file.FileName, Status = "Uploaded" });
         }
+
+        [HttpPost("process-video")]
+        public async Task<IActionResult> ProcessVideo([FromQuery] string userId)
+        {
+            await _videoService.ProcessVideoAndNotify(userId);
+            return Ok("Процесс запущен");
+        }
+
+        [HttpGet("status/{taskId}")]
+        public async Task<IActionResult> GetVideoProcessingStatus(Guid taskId)
+        {
+            var task = await _dbContext.VideoProcessingTasks
+                .FirstOrDefaultAsync(t => t.Id == taskId);
+
+            if (task == null)
+                return NotFound("Task not found");
+
+            return Ok(new
+            {
+                Status = task.Status.ToString(),
+                Attempts = task.Attempts,
+                ErrorMessage = task.ErrorMessage
+            });
+        }
+
 
     }
 }

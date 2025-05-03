@@ -1,5 +1,6 @@
 ﻿@{
     ViewData["Title"] = "Home Page";
+    var userId = User.Identity.IsAuthenticated ? User.Identity.Name : "guest";
 }
 
 <div class="text-center">
@@ -9,18 +10,19 @@
 
 @section Scripts {
     <script>
-        let userId = "user123"; // можешь передавать динамически
+        let userId = "D3647181-37FA-43FA-BE20-88BA8EE2F262";
         let socket = null;
         let pingInterval = null;
 
         function connectWebSocket() {
             const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-            const wsUrl = `${protocol}://${window.location.host}/ws/notifications?userId=${userId}`;
+
+            const wsUrl = `${protocol}://localhost:44320/api/Notification/ws?userId=${userId}`;
             socket = new WebSocket(wsUrl);
 
             socket.onopen = function () {
                 console.log("WebSocket открыт");
-                appendMessage("🔵 Соединение установлено");
+                appendMessage("Соединение установлено");
 
                 // Периодический пинг
                 pingInterval = setInterval(() => {
@@ -31,16 +33,16 @@
             };
 
             socket.onmessage = function (event) {
-                appendMessage("📢 " + event.data);
+                appendMessage(event.data);
             };
 
             socket.onerror = function (error) {
-                appendMessage("❌ Ошибка WebSocket");
+                appendMessage("Ошибка WebSocket");
                 console.error(error);
             };
 
             socket.onclose = function () {
-                appendMessage("🔴 Соединение закрыто");
+                appendMessage("Соединение закрыто");
                 if (pingInterval) clearInterval(pingInterval);
                 setTimeout(connectWebSocket, 5000); // попытка переподключения
             };
@@ -54,9 +56,65 @@
         }
 
         window.onload = connectWebSocket;
+
+            document.getElementById("uploadForm").addEventListener("submit", function (e) {
+            e.preventDefault();
+            const fileInput = this.querySelector("input[type='file']");
+            const file = fileInput.files[0];
+
+            if (!file) return alert("Выберите видеофайл");
+
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("userId", userId);
+
+            document.getElementById("uploadStatus").textContent = "Загрузка...";
+
+            fetch("https://localhost:44320/api/videoUpload/upload", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    document.getElementById("uploadStatus").textContent = "Загрузка завершена";
+
+                    fetch(`https://localhost:44320/api/videoUpload/process-video?userId=${userId}`, {
+                        method: "POST"
+                    })
+                    .then(processResponse => {
+                        if (processResponse.ok) {
+                            appendMessage("Процесс обработки запущен");
+                        } else {
+                            appendMessage("Ошибка запуска обработки");
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Process error:", error);
+                        appendMessage("Сетевая ошибка запуска обработки");
+                    });
+                } else {
+                    document.getElementById("uploadStatus").textContent = `Ошибка загрузки: ${response.status}`;
+                }
+            })
+            .catch(error => {
+                console.error("Upload error:", error);
+                document.getElementById("uploadStatus").textContent = "Сетевая ошибка";
+            });
+        });
+
     </script>
 }
 
 <h2>WebSocket Уведомления</h2>
 <ul id="notifications"></ul>
+
+<h3>Загрузка видео</h3>
+<form id="uploadForm" enctype="multipart/form-data">
+    <input type="file" name="videoFile" accept="video/*" required />
+    <button type="submit">Загрузить</button>
+</form>
+<p id="uploadStatus"></p>
+
+
+
 

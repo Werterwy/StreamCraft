@@ -1,3 +1,5 @@
+using Amazon.S3;
+using Amazon;
 using CorrelationId;
 using CorrelationId.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
@@ -36,7 +38,7 @@ builder.Services.AddScoped<VideoStorageService>();
 
 builder.Services.AddSingleton<VideoProcessingQueue>();
 
-builder.Services.AddHostedService<VideoProcessingService>();
+builder.Services.AddScoped<VideoProcessingService>();
 
 builder.Services.AddSingleton<WebSocketConnectionManager>();
 
@@ -51,10 +53,27 @@ builder.Services.AddSingleton<IPermanentStorageService>(provider =>
     var fallback = provider.GetRequiredService<LocalFallbackStorageService>();
     return new ResilientStorageService(s3, fallback);
 });
+
 builder.Services.AddSingleton<S3StorageService>();
 builder.Services.AddSingleton<LocalFallbackStorageService>();
 builder.Services.AddScoped<StorageOrchestratorService>();
 
+builder.Services.AddSingleton<IAmazonS3>(new AmazonS3Client(
+    new AmazonS3Config
+    {
+        RegionEndpoint = RegionEndpoint.USEast1 
+    }
+));
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("https://localhost:44328") 
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
 
 // Add services to the container.
 
@@ -74,6 +93,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseCors("AllowFrontend");
+
+
 app.MapHealthChecks("/health");
 
 app.UseCorrelationId();
@@ -92,25 +114,6 @@ app.Use(async (context, next) =>
 
 
 app.UseWebSockets();
-
-app.Map("/ws/notifications", async context =>
-{
-    if (context.WebSockets.IsWebSocketRequest)
-    {
-        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-        var userId = context.Request.Query["userId"].ToString();
-
-        if (!string.IsNullOrEmpty(userId))
-        {
-            var connectionManager = context.RequestServices.GetRequiredService<WebSocketConnectionManager>();
-            await connectionManager.Register(userId, webSocket);
-        }
-    }
-    else
-    {
-        context.Response.StatusCode = 400;
-    }
-});
 
 app.UseAuthorization();
 

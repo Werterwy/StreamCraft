@@ -1,0 +1,29 @@
+﻿@{
+    ViewBag.Title = "Login";
+}
+
+<h2>Вход</h2>
+
+@using (Html.BeginForm())
+{
+    <div class="form-group">
+        @Html.Label("Username")
+        @Html.TextBox("username", null, new { @class = "form-control" })
+    </div>
+
+    <div class="form-group">
+        @Html.Label("Password")
+        @Html.Password("password", null, new { @class = "form-control" })
+    </div>
+
+    <div class="form-group">
+        <button type="submit" class="btn btn-primary">Войти</button>
+    </div>
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger">
+            @ViewBag.Error
+        </div>
+    }
+}

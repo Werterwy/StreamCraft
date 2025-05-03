@@ -146,6 +146,62 @@ namespace StreamCraftAPI.Service
         public string GetThumbnailPath(Guid id) =>
             Path.Combine(_wwwrootPath, "thumbnails", $"{id}_thumb.jpg");
 
+        public async Task<string> AddWatermarkAsync(string inputPath, string outputPath, string watermarkText)
+        {
+            var arguments = $"-i \"{inputPath}\" -vf \"drawtext=text='{watermarkText}':x=10:y=10:fontsize=24:fontcolor=white:shadowcolor=black:shadowx=2:shadowy=2\" " +
+                            "-c:v libx264 -preset fast -crf 23 -c:a copy " +
+                            $"\"{outputPath}\"";
+
+            var success = await RunFfmpegProcess(arguments);
+            if (!success)
+            {
+                _logger.LogError("Failed to add watermark to video: {Input}", inputPath);
+                throw new Exception("Adding watermark failed");
+            }
+
+            return outputPath;
+        }
+
+
+        public async Task<bool> ExecuteFFmpegCommandAsync(string arguments)
+        {
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "ffmpeg",
+                    Arguments = arguments,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            _logger.LogDebug("Running ffmpeg with arguments: {Args}", arguments);
+
+            process.Start();
+
+            var errorOutput = await process.StandardError.ReadToEndAsync();
+            var exitCode = await Task.Run(() =>
+            {
+                process.WaitForExit();
+                return process.ExitCode;
+            });
+
+            if (exitCode != 0)
+            {
+                _logger.LogError("ffmpeg exited with code {Code}. Error: {Error}", exitCode, errorOutput);
+                return false;
+            }
+
+            _logger.LogDebug("ffmpeg completed successfully.");
+            return true;
+        }
+
+
+
+
     }
 
 }

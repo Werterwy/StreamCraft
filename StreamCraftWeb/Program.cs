@@ -1,7 +1,18 @@
+using Microsoft.AspNetCore.Authentication.Cookies; // Ensure this is included
+using Microsoft.AspNetCore.Builder; // Ensure this is included
+using Microsoft.Extensions.DependencyInjection; // Ensure this is included
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+
+// Add authentication services
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+   .AddCookie(options =>
+   {
+       options.LoginPath = new PathString("/Account/Login");
+   });
 
 var app = builder.Build();
 
@@ -18,10 +29,12 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
+// Add authentication and authorization middleware
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
+   name: "default",
+   pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.Run();
